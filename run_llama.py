@@ -1,51 +1,38 @@
 import torch
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
-# Paths
-model_path = "./consolidated.00.pth"
-config_path = "./params.json"
-tokenizer_path = "./tokenizer_dir"
+# Use MPS if available
+device = torch.device("mps" if torch.has_mps else "cpu")
+print(f"Using device: {device}")
 
-def load_llama():
-    # Load the tokenizer
-    print("Loading tokenizer...")
-    tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path, legacy=True)
-    
-    # Load the model
-    print("Loading model...")
-    model = LlamaForCausalLM.from_pretrained(
-        pretrained_model_name_or_path=model_path,
-        config=config_path,
-        torch_dtype=torch.float16,  # Adjust based on your hardware
-    )
-    print("Model and tokenizer loaded successfully!")
-    return model, tokenizer
+# Define the model and tokenizer paths
+model_weights_path = "/Users/jonathansamuels/LLM's/transformers/Llama/Meta-Llama-3.1-8B-Instruct/original/consolidated.00.pth"
+tokenizer_path = "/Users/jonathansamuels/LLM's/transformers/Llama/Meta-Llama-3.1-8B-Instruct/original/tokenizer.model"
+config_path = "/Users/jonathansamuels/LLM's/transformers/Llama/Meta-Llama-3.1-8B-Instruct/original/params.json"
 
-def run_inference(model, tokenizer, prompt):
-    # Encode the input prompt
-    inputs = tokenizer(prompt, return_tensors="pt")
+# Load tokenizer
+print("Loading tokenizer...")
+tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path)
 
-    # Generate output
-    print("Generating response...")
-    outputs = model.generate(
-        inputs["input_ids"],
-        max_length=100,
-        temperature=0.7,
-        top_p=0.9,
-        do_sample=True,
-    )
+# Load model weights
+print("Loading model weights...")
+model = LlamaForCausalLM.from_pretrained(
+    pretrained_model_name_or_path=None,
+    state_dict=torch.load(model_weights_path, map_location=device),
+    config=config_path
+).to(device)
 
-    # Decode and return the response
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return response
+# Example text generation
+input_text = "Hello, I am a large language model."
+inputs = tokenizer(input_text, return_tensors="pt").to(device)
 
-if __name__ == "__main__":
-    model, tokenizer = load_llama()
-    
-    prompt = "Explain the theory of relativity in simple terms."
-    response = run_inference(model, tokenizer, prompt)
-    
-    print("\nPrompt:")
-    print(prompt)
-    print("\nResponse:")
-    print(response)
+# Generate a response
+print("Generating text...")
+with torch.no_grad():
+    outputs = model.generate(inputs['input_ids'], max_length=100)
+
+# Decode the output
+generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# Print the result
+print(f"Generated Text: {generated_text}")
